@@ -26,6 +26,7 @@
   <ItemGroup>
     <Content Include="color.ini" />
     <Content Include="flags.ini" />
+    <Content Include="font.ini" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in
