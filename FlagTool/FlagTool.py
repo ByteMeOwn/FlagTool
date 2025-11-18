@@ -1,230 +1,217 @@
-import configparser, tkinter as tk
-from tkinter import messagebox
+import configparser,tkinter as tk
+from tkinter import ttk,messagebox
 
-def carregar_cores():
-    ini = configparser.ConfigParser()
-    ini.read("color.ini", encoding="utf-8")
-    c = dict(ini["colors"])
-    return {
-        "fundo": c["fundo"],"header": c["header"],"card": c["card"],"destaque": c["destaque"],"texto": c["texto"],"botao": c["botao"],"botao_txt": c["botao_txt"],"botao_ativo": c["botao_ativo"],"botao_ativo_txt": c["botao_ativo_txt"],"quadro_selec": c["quadro_selec"],"quadro_normal": c["quadro_normal"],"quadro_texto": c["quadro_texto"],"quadro_null": c.get("quadro_null", "#1a1a1a")
-    }
+def cfg(a,s,k,d):
+    i=configparser.ConfigParser()
+    try:i.read(a,encoding="utf-8");return i.get(s,k,fallback=d)
+    except:return d
 
-def carregar_fonte():
-    ini = configparser.ConfigParser()
-    try:
-        ini.read("font.ini", encoding="utf-8")
-        nome = ini.get("font", "nome", fallback="Arial")
-        tamanho = ini.getint("font", "tamanho", fallback=9)
-        return (nome, tamanho)
-    except:
-        return ("Arial", 9)
+def cfgi(a,s,k,d):
+    i=configparser.ConfigParser()
+    try:i.read(a,encoding="utf-8");return i.getint(s,k,fallback=d)
+    except:return d
 
-def carregar_flags():
-    ini = configparser.ConfigParser()
-    ini.read("flags.ini", encoding="utf-8")
-    restricoes = [(k, int(v,0)) for k, v in ini["item"].items()]
-    enchants = [(k, int(v,0)) for k, v in ini["enchant"].items()]
-    classes_categorias = []
-    for sec in ini.sections():
-        if sec.startswith("classe_"):
-            cat = sec.split("_",1)[1]
-            pares = [(k,ini[sec][k]) for k in ini[sec]]
-            classes_categorias.append((cat, pares))
-    return restricoes, enchants, classes_categorias
+C={k:cfg("color.ini","colors",k,"#000")for k in["fundo","header","card","destaque","texto","botao","botao_txt","botao_ativo","botao_ativo_txt","quadro_selec","quadro_normal","quadro_texto","quadro_null","borda"]}
+F=(cfg("font.ini","font","nome","Arial"),cfgi("font.ini","font","tamanho",9))
+I=configparser.ConfigParser()
+I.read("interface.ini",encoding="utf-8")
+D={s+"_"+k:I.getint(s,k,fallback=0)for s in["janela","toolbar","statusbar","celula","botao","label","entry","espacamento"]for k in I.options(s)}if I.sections()else{}
 
-CORES = carregar_cores()
-FONTE = carregar_fonte()
-restricoes, enchants, classes_por_categoria = carregar_flags()
-HEADER_FOOTER_HEIGHT = 40
+def load_flags():
+    i=configparser.ConfigParser();i.read("flags.ini",encoding="utf-8")
+    r=[(k,int(v,0))for k,v in i["item"].items()]
+    e=[(k,int(v,0))for k,v in i["enchant"].items()]
+    c=[(s.split("_",1)[1],[(k,i[s][k])for k in i[s]])for s in i.sections()if s.startswith("classe_")]
+    return r,e,c
 
-def hexstr_to_int(hexstr): return int(hexstr,16)
-def int_to_hexstr(val): return f"{val:X}"
-def is_hexadecimal(valor):
-    if valor.lower().startswith("0x"): valor=valor[2:]
-    return all(c in "0123456789abcdefABCDEF" for c in valor) and valor != ""
+R,E,CLS=load_flags()
+h2i=lambda h:int(h,16)
+i2h=lambda v:f"{v:X}"
+is_hex=lambda v:all(c in"0123456789abcdefABCDEF"for c in(v[2:]if v.lower().startswith("0x")else v))and v!=""
 
-class AbaItens(tk.Frame):
-    def __init__(self, master, cb, rf): super().__init__(master,bg=CORES["fundo"]); self.selected=set(); self.cf={}; self.total=0; self.cb=cb; self.rf=rf; self.build()
-    def build(self):
-        inner = tk.Frame(self, bg=CORES["fundo"]); inner.pack(expand=True)
-        lista = restricoes; nc=4; nl=(len(lista)+nc-1)//nc
-        for i,(n,v) in enumerate(lista):
-            f=tk.Frame(inner,bg=CORES["quadro_normal"],bd=1,relief="solid",width=140,height=36,cursor="hand2")
-            col,row=i//nl,i%nl; f.grid(row=row,column=col,sticky="nsew",padx=3,pady=3); f.pack_propagate(False)
-            l=tk.Label(f,text=n,font=FONTE,fg=CORES["texto"],bg=CORES["quadro_normal"]); l.pack(expand=True,fill=tk.BOTH)
-            f.bind("<Button-1>",lambda e,v=v:self.toggle_selection(v)); l.bind("<Button-1>",lambda e,v=v:self.toggle_selection(v)); self.cf[v]=f
-        for col in range(nc): inner.grid_columnconfigure(col,weight=1,uniform="cols")
-    def toggle_selection(self,v):
-        f,l=self.cf[v],self.cf[v].winfo_children()[0]
-        if v in self.selected:self.selected.remove(v);f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        else:self.selected.add(v);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-        self.update_total();self.rf()
-    def update_total(self):
-        self.total=sum(self.selected);self.cb(self.total)
-    def checar_decimal(self,valor):
-        if not valor.isdigit():messagebox.showwarning("Valor inválido","Digite um valor decimal válido.");return
-        decimal=int(valor)
-        sel=[v for v in self.cf if (decimal&v)==v and v!=0]
-        if not sel and decimal!=0:messagebox.showinfo("Nenhuma Flag","Nenhuma flag corresponde.");return
-        self.selected.clear()
-        for v,f in self.cf.items():
+class Tab(tk.Frame):
+    def __init__(self,p,cb):
+        super().__init__(p,bg=C["fundo"])
+        self.s=set();self.cs={};self.t=0;self.cb=cb
+    def mk_cell(self,p,txt,val,b=False):
+        f=tk.Frame(p,bg=C["quadro_normal"],highlightbackground=C["borda"],highlightthickness=D.get("celula_borda",1),cursor="hand2")
+        ft=(F[0],F[1],"bold")if b else F
+        l=tk.Label(f,text=txt,font=ft,fg=C["texto"],bg=C["quadro_normal"],anchor="center")
+        l.pack(expand=True,fill=tk.BOTH,padx=D.get("celula_padx",6),pady=D.get("celula_pady",6))
+        for w in[f,l]:
+            w.bind("<Button-1>",lambda e,v=val:self.tog(v))
+            w.bind("<Enter>",lambda e,fr=f:fr.config(highlightbackground=C["destaque"]))
+            w.bind("<Leave>",lambda e,fr=f,vl=val:fr.config(highlightbackground=C["quadro_selec"]if vl in self.s else C["borda"]))
+        self.cs[val]=f
+        return f
+    def mk_null(self,p):
+        return tk.Frame(p,bg=C["quadro_null"],highlightthickness=0)
+    def tog(self,v):
+        f,l=self.cs[v],self.cs[v].winfo_children()[0]
+        if v in self.s:
+            self.s.remove(v);f.config(bg=C["quadro_normal"],highlightbackground=C["borda"])
+            l.config(bg=C["quadro_normal"],fg=C["texto"])
+        else:
+            self.s.add(v);f.config(bg=C["quadro_selec"],highlightbackground=C["quadro_selec"])
+            l.config(bg=C["quadro_selec"],fg=C["quadro_texto"])
+        self.upd()
+    def upd(self):pass
+    def mark_all(self):
+        self.s=set(self.cs.keys())
+        for f in self.cs.values():
+            f.config(bg=C["quadro_selec"],highlightbackground=C["quadro_selec"])
+            f.winfo_children()[0].config(bg=C["quadro_selec"],fg=C["quadro_texto"])
+        self.upd()
+    def clear_all(self):
+        self.s.clear();self.t=0
+        for f in self.cs.values():
+            f.config(bg=C["quadro_normal"],highlightbackground=C["borda"])
+            f.winfo_children()[0].config(bg=C["quadro_normal"],fg=C["texto"])
+        self.upd()
+
+class TabItem(Tab):
+    def __init__(self,p,cb):
+        super().__init__(p,cb)
+        g=tk.Frame(self,bg=C["fundo"]);g.pack(expand=True)
+        nc=4;nr=(len(R)+nc-1)//nc
+        for i,(n,v)in enumerate(R):
+            c=self.mk_cell(g,n,v)
+            c.grid(row=i%nr,column=i//nr,sticky="nsew",padx=D.get("celula_padding",3),pady=D.get("celula_padding",3))
+        for col in range(nc):g.grid_columnconfigure(col,weight=1,uniform="c")
+        for row in range(nr):g.grid_rowconfigure(row,weight=1,uniform="r")
+    def upd(self):self.t=sum(self.s);self.cb(self.t)
+    def chk(self,val):
+        if not val.isdigit():messagebox.showwarning("Erro","Valor decimal inválido.");return
+        d=int(val);sel=[v for v in self.cs if(d&v)==v and v!=0]
+        if not sel and d!=0:messagebox.showinfo("Info","Nenhuma flag corresponde.");return
+        self.s.clear()
+        for v,f in self.cs.items():
             l=f.winfo_children()[0]
-            if(decimal&v)==v and v!=0:self.selected.add(v);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-            else:f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        self.total=decimal;self.cb(decimal)
-    def marcar_tudo(self):self.selected=set(self.cf.keys());[f.config(bg=CORES["quadro_selec"])or f.winfo_children()[0].config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"]) for f in self.cf.values()];self.update_total();self.rf()
-    def limpar_selecoes(self):self.selected.clear();self.total=0;[f.config(bg=CORES["quadro_normal"])or f.winfo_children()[0].config(bg=CORES["quadro_normal"],fg=CORES["texto"]) for f in self.cf.values()];self.update_total();self.rf()
-
-class AbaClasses(tk.Frame):
-    def __init__(self, master, cb, rf): super().__init__(master, bg=CORES["fundo"]); self.selected=set(); self.cf={}; self.total=0; self.cb=cb; self.rf=rf; self.build()
-    def build(self):
-        inner = tk.Frame(self, bg=CORES["fundo"]); inner.pack(expand=True)
-        novato_cat=classes_por_categoria[0][1]; outras=classes_por_categoria[1:]; cc=1+len(outras); mr=max(len(cat[1]) for cat in outras); tr=mr
-        for row in range(tr):
-            if row < len(novato_cat):
-                hid,nome=novato_cat[row];f=tk.Frame(inner,bg=CORES["quadro_normal"],bd=1,relief="solid",width=140,height=36,cursor="hand2")
-                f.grid(row=row,column=0,sticky="nsew",padx=3,pady=3);f.pack_propagate(False)
-                l=tk.Label(f,text=nome,font=(FONTE[0],FONTE[1],"bold"),fg=CORES["texto"],bg=CORES["quadro_normal"]);l.pack(expand=True,fill=tk.BOTH)
-                f.bind("<Button-1>",lambda e,h=hid:self.toggle_selection(h));l.bind("<Button-1>",lambda e,h=hid:self.toggle_selection(h));self.cf[hid]=f
+            if(d&v)==v and v!=0:
+                self.s.add(v);f.config(bg=C["quadro_selec"],highlightbackground=C["quadro_selec"])
+                l.config(bg=C["quadro_selec"],fg=C["quadro_texto"])
             else:
-                f=tk.Frame(inner,bg=CORES["quadro_null"],bd=1,relief="flat",width=140,height=36)
-                f.grid(row=row,column=0,sticky="nsew",padx=3,pady=3);f.pack_propagate(False)
-        for col,(_,cls) in enumerate(outras,start=1):
-            for row in range(tr):
-                if row<len(cls):
-                    hid,nome=cls[row];f=tk.Frame(inner,bg=CORES["quadro_normal"],bd=1,relief="solid",width=140,height=36,cursor="hand2")
-                    f.grid(row=row,column=col,sticky="nsew",padx=3,pady=3);f.pack_propagate(False)
-                    l=tk.Label(f,text=nome,font=FONTE,fg=CORES["texto"],bg=CORES["quadro_normal"]);l.pack(expand=True,fill=tk.BOTH)
-                    f.bind("<Button-1>",lambda e,h=hid:self.toggle_selection(h));l.bind("<Button-1>",lambda e,h=hid:self.toggle_selection(h));self.cf[hid]=f
-        for col in range(cc): inner.grid_columnconfigure(col,weight=1,uniform="cols")
-    def toggle_selection(self,hid):
-        f,l=self.cf[hid],self.cf[hid].winfo_children()[0]
-        if hid in self.selected:self.selected.remove(hid);f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        else:self.selected.add(hid);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-        self.update_total();self.rf()
-    def update_total(self):
-        t=0;[t:=t|hexstr_to_int(hid) for hid in self.selected];self.total=t;self.cb(t)
-    def checar_hex(self,valor):
-        if valor.lower().startswith("0x"):valor=valor[2:]
-        if not is_hexadecimal(valor):messagebox.showwarning("Valor inválido","Digite um valor hexadecimal.");return
-        decimal=int(valor,16)
-        sel=[hid for hid in self.cf if(decimal&hexstr_to_int(hid))==hexstr_to_int(hid)and hexstr_to_int(hid)!=0]
-        if not sel and decimal!=0:messagebox.showinfo("Nenhuma Flag","Nenhuma flag corresponde.");return
-        self.selected.clear()
-        for hid,f in self.cf.items():
-            l=f.winfo_children()[0]
-            if(decimal&hexstr_to_int(hid))==hexstr_to_int(hid)and hexstr_to_int(hid)!=0:
-                self.selected.add(hid);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-            else:f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        self.total=decimal;self.cb(decimal)
-    def marcar_tudo(self):self.selected=set(self.cf.keys());[f.config(bg=CORES["quadro_selec"])or f.winfo_children()[0].config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"]) for f in self.cf.values()];self.update_total();self.rf()
-    def limpar_selecoes(self):self.selected.clear();self.total=0;[f.config(bg=CORES["quadro_normal"])or f.winfo_children()[0].config(bg=CORES["quadro_normal"],fg=CORES["texto"]) for f in self.cf.values()];self.update_total();self.rf()
+                f.config(bg=C["quadro_normal"],highlightbackground=C["borda"])
+                l.config(bg=C["quadro_normal"],fg=C["texto"])
+        self.t=d;self.cb(d)
 
-class AbaEnchants(tk.Frame):
-    def __init__(self, master, cb, rf): super().__init__(master, bg=CORES["fundo"]); self.selected=set(); self.cf={}; self.total=0; self.cb=cb; self.rf=rf; self.build()
-    def build(self):
-        inner = tk.Frame(self, bg=CORES["fundo"]);inner.pack(expand=True)
-        lista = enchants; nc=4; nl=(len(lista)+nc-1)//nc
-        for i,(n,v) in enumerate(lista):
-            f=tk.Frame(inner,bg=CORES["quadro_normal"],bd=1,relief="solid",width=140,height=36,cursor="hand2")
-            col,row=i//nl,i%nl;f.grid(row=row,column=col,sticky="nsew",padx=3,pady=3);f.pack_propagate(False)
-            l=tk.Label(f,text=n,font=FONTE,fg=CORES["texto"],bg=CORES["quadro_normal"]);l.pack(expand=True,fill=tk.BOTH)
-            f.bind("<Button-1>",lambda e,v=v:self.toggle_selection(v));l.bind("<Button-1>",lambda e,v=v:self.toggle_selection(v));self.cf[v]=f
-        for col in range(nc): inner.grid_columnconfigure(col,weight=1,uniform="cols")
-    def toggle_selection(self,v):
-        f,l=self.cf[v],self.cf[v].winfo_children()[0]
-        if v in self.selected:self.selected.remove(v);f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        else:self.selected.add(v);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-        self.update_total();self.rf()
-    def update_total(self):
-        self.total=sum(self.selected);self.cb(self.total)
-    def checar_decimal(self,valor):
-        if not valor.isdigit():messagebox.showwarning("Valor inválido","Digite um valor decimal válido.");return
-        decimal=int(valor)
-        sel=[v for v in self.cf if (decimal&v)==v and v!=0]
-        if not sel and decimal!=0:messagebox.showinfo("Nenhuma Flag","Nenhuma flag corresponde.");return
-        self.selected.clear()
-        for v,f in self.cf.items():
+class TabClass(Tab):
+    def __init__(self,p,cb):
+        super().__init__(p,cb)
+        g=tk.Frame(self,bg=C["fundo"]);g.pack(expand=True)
+        n=CLS[0][1];o=CLS[1:];nc=1+len(o);mr=max(len(x[1])for x in o);tr=mr
+        for r in range(tr):
+            if r<len(n):
+                hid,nm=n[r];c=self.mk_cell(g,nm,hid,b=True)
+                c.grid(row=r,column=0,sticky="nsew",padx=D.get("celula_padding",3),pady=D.get("celula_padding",3))
+            else:
+                c=self.mk_null(g)
+                c.grid(row=r,column=0,sticky="nsew",padx=D.get("celula_padding",3),pady=D.get("celula_padding",3))
+        for col,(_,cls)in enumerate(o,start=1):
+            for r in range(tr):
+                if r<len(cls):
+                    hid,nm=cls[r];c=self.mk_cell(g,nm,hid)
+                    c.grid(row=r,column=col,sticky="nsew",padx=D.get("celula_padding",3),pady=D.get("celula_padding",3))
+        for col in range(nc):g.grid_columnconfigure(col,weight=1,uniform="c")
+        for row in range(tr):g.grid_rowconfigure(row,weight=1,uniform="r")
+    def upd(self):t=0;[t:=t|h2i(h)for h in self.s];self.t=t;self.cb(t)
+    def chk(self,val):
+        if val.lower().startswith("0x"):val=val[2:]
+        if not is_hex(val):messagebox.showwarning("Erro","Valor hexadecimal inválido.");return
+        d=int(val,16);sel=[h for h in self.cs if(d&h2i(h))==h2i(h)and h2i(h)!=0]
+        if not sel and d!=0:messagebox.showinfo("Info","Nenhuma flag corresponde.");return
+        self.s.clear()
+        for h,f in self.cs.items():
             l=f.winfo_children()[0]
-            if(decimal&v)==v and v!=0:self.selected.add(v);f.config(bg=CORES["quadro_selec"]);l.config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"])
-            else:f.config(bg=CORES["quadro_normal"]);l.config(bg=CORES["quadro_normal"],fg=CORES["texto"])
-        self.total=decimal;self.cb(decimal)
-    def marcar_tudo(self):self.selected=set(self.cf.keys());[f.config(bg=CORES["quadro_selec"])or f.winfo_children()[0].config(bg=CORES["quadro_selec"],fg=CORES["quadro_texto"]) for f in self.cf.values()];self.update_total();self.rf()
-    def limpar_selecoes(self):self.selected.clear();self.total=0;[f.config(bg=CORES["quadro_normal"])or f.winfo_children()[0].config(bg=CORES["quadro_normal"],fg=CORES["texto"]) for f in self.cf.values()];self.update_total();self.rf()
+            if(d&h2i(h))==h2i(h)and h2i(h)!=0:
+                self.s.add(h);f.config(bg=C["quadro_selec"],highlightbackground=C["quadro_selec"])
+                l.config(bg=C["quadro_selec"],fg=C["quadro_texto"])
+            else:
+                f.config(bg=C["quadro_normal"],highlightbackground=C["borda"])
+                l.config(bg=C["quadro_normal"],fg=C["texto"])
+        self.t=d;self.cb(d)
 
-class CalculadoraRestricoesApp(tk.Tk):
+class TabEnch(Tab):
+    def __init__(self,p,cb):
+        super().__init__(p,cb)
+        g=tk.Frame(self,bg=C["fundo"]);g.pack(expand=True)
+        nc=4;nr=(len(E)+nc-1)//nc
+        for i,(n,v)in enumerate(E):
+            c=self.mk_cell(g,n,v)
+            c.grid(row=i%nr,column=i//nr,sticky="nsew",padx=D.get("celula_padding",3),pady=D.get("celula_padding",3))
+        for col in range(nc):g.grid_columnconfigure(col,weight=1,uniform="c")
+        for row in range(nr):g.grid_rowconfigure(row,weight=1,uniform="r")
+    def upd(self):self.t=sum(self.s);self.cb(self.t)
+    def chk(self,val):
+        if not val.isdigit():messagebox.showwarning("Erro","Valor decimal inválido.");return
+        d=int(val);sel=[v for v in self.cs if(d&v)==v and v!=0]
+        if not sel and d!=0:messagebox.showinfo("Info","Nenhuma flag corresponde.");return
+        self.s.clear()
+        for v,f in self.cs.items():
+            l=f.winfo_children()[0]
+            if(d&v)==v and v!=0:
+                self.s.add(v);f.config(bg=C["quadro_selec"],highlightbackground=C["quadro_selec"])
+                l.config(bg=C["quadro_selec"],fg=C["quadro_texto"])
+            else:
+                f.config(bg=C["quadro_normal"],highlightbackground=C["borda"])
+                l.config(bg=C["quadro_normal"],fg=C["texto"])
+        self.t=d;self.cb(d)
+
+class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Calculadora de Flags - Mestick & Eternity")
-        self.geometry("680x490");self.resizable(False,False)
-        self.configure(bg=CORES["fundo"])
-        self.current_tab = "itens"
-        self.grid_rowconfigure(1, weight=1);self.grid_columnconfigure(0, weight=1)
-        header = tk.Frame(self, bg=CORES["header"], height=HEADER_FOOTER_HEIGHT);header.grid(row=0,column=0,sticky="ew");header.grid_propagate(False)
-        botao_estilo={"font":(FONTE[0],10,"bold"),"bg":CORES["botao"],"fg":CORES["botao_txt"],"relief":"flat","width":10,"height":1,"activebackground":CORES["botao_ativo"],"activeforeground":CORES["botao_ativo_txt"],"bd":0}
-        self.btn_itens=tk.Button(header,text="Item",command=self.show_itens,cursor="hand2",**botao_estilo);self.btn_itens.pack(side=tk.LEFT,fill="y",padx=2)
-        self.btn_classes=tk.Button(header,text="Classe",command=self.show_classes,cursor="hand2",**botao_estilo);self.btn_classes.pack(side=tk.LEFT,fill="y",padx=2)
-        self.btn_enchants=tk.Button(header,text="Enchant",command=self.show_enchants,cursor="hand2",**botao_estilo);self.btn_enchants.pack(side=tk.LEFT,fill="y",padx=2)
-        self.container=tk.Frame(self,bg=CORES["fundo"]);self.container.grid(row=1,column=0,sticky="nsew")
-        self.footer=tk.Frame(self,bg=CORES["header"],height=HEADER_FOOTER_HEIGHT);self.footer.grid(row=2,column=0,sticky="ew");self.footer.grid_propagate(False);self.create_footer()
-        self.aba_itens=AbaItens(self.container,self.update_footer,self.remove_input_focus)
-        self.aba_classes=AbaClasses(self.container,self.update_footer,self.remove_input_focus)
-        self.aba_enchants=AbaEnchants(self.container,self.update_footer,self.remove_input_focus)
-        self.aba_itens.pack(fill="both",expand=True);self.aba_classes.pack_forget();self.aba_enchants.pack_forget()
-        self.update_btn_states("itens")
-    def remove_input_focus(self):self.focus()
-    def create_footer(self):
-        top_footer=tk.Frame(self.footer,bg=CORES["header"],height=20);top_footer.pack(side=tk.TOP,fill="x")
-        self.resultado_label=tk.Label(top_footer,text="Resultado - Decimal:",font=(FONTE[0],10,"bold"),fg=CORES["destaque"],bg=CORES["header"]);self.resultado_label.pack(side=tk.LEFT,padx=8)
-        self.total_valor_label=tk.Label(top_footer,text="0",font=(FONTE[0],10,"bold"),fg=CORES["texto"],bg=CORES["header"]);self.total_valor_label.pack(side=tk.LEFT)
-        bottom_footer=tk.Frame(self.footer,bg=CORES["header"]);bottom_footer.pack(side=tk.BOTTOM,fill="x",pady=2)
-        self.input_valor=tk.Entry(bottom_footer,font=(FONTE[0],9),justify="center",width=15);self.input_valor.pack(side=tk.LEFT,padx=4,ipady=4)
-        botao_estilo={"font":(FONTE[0],9,"bold"),"bg":CORES["botao"],"fg":CORES["botao_txt"],"relief":"flat","width":10,"activebackground":CORES["botao_ativo"],"activeforeground":CORES["botao_ativo_txt"]}
-        self.checar_btn=tk.Button(bottom_footer,text="Checar",command=self.checar_hex,**botao_estilo);self.checar_btn.pack(side=tk.LEFT,padx=2)
-        tk.Button(bottom_footer,text="Copiar",command=self.copiar_hex,**botao_estilo).pack(side=tk.LEFT,padx=2)
-        tk.Button(bottom_footer,text="Marcar",command=self.marcar_tudo,**botao_estilo).pack(side=tk.LEFT,padx=2)
-        tk.Button(bottom_footer,text="Limpar",command=self.limpar_selecoes,**botao_estilo).pack(side=tk.LEFT,padx=2)
-    def update_footer(self,total):
-        if self.current_tab in ["itens","enchants"]:self.resultado_label.config(text="Resultado - Decimal:");self.total_valor_label.config(text=f"{total}")
-        else:self.resultado_label.config(text="Resultado - Hexadecimal:");self.total_valor_label.config(text=f"{int_to_hexstr(total)}")
-        self.input_valor.delete(0,tk.END)
-        if total!=0:
-            if self.current_tab in ["itens","enchants"]:self.input_valor.insert(0,f"{total}")
-            else:self.input_valor.insert(0,int_to_hexstr(total))
-    def checar_hex(self):
-        valor=self.input_valor.get().strip()
-        if self.current_tab=="itens":self.aba_itens.checar_decimal(valor)
-        elif self.current_tab=="classes":self.aba_classes.checar_hex(valor)
-        elif self.current_tab=="enchants":self.aba_enchants.checar_decimal(valor)
-    def copiar_hex(self):
-        if self.current_tab=="itens":valor=str(self.aba_itens.total)
-        elif self.current_tab=="classes":valor=int_to_hexstr(self.aba_classes.total)
-        elif self.current_tab=="enchants":valor=str(self.aba_enchants.total)
-        self.clipboard_clear();self.clipboard_append(valor);messagebox.showinfo("Copiado",f"Valor {valor} copiado!")
-    def marcar_tudo(self):
-        if self.current_tab=="itens":self.aba_itens.marcar_tudo()
-        elif self.current_tab=="classes":self.aba_classes.marcar_tudo()
-        elif self.current_tab=="enchants":self.aba_enchants.marcar_tudo()
-    def limpar_selecoes(self):
-        if self.current_tab=="itens":self.aba_itens.limpar_selecoes()
-        elif self.current_tab=="classes":self.aba_classes.limpar_selecoes()
-        elif self.current_tab=="enchants":self.aba_enchants.limpar_selecoes()
-    def show_itens(self):
-        self.aba_classes.pack_forget();self.aba_enchants.pack_forget()
-        self.aba_itens.pack(fill="both",expand=True);self.update_btn_states("itens")
-        self.current_tab="itens";self.update_footer(self.aba_itens.total)
-    def show_classes(self):
-        self.aba_itens.pack_forget();self.aba_enchants.pack_forget()
-        self.aba_classes.pack(fill="both",expand=True);self.update_btn_states("classes")
-        self.current_tab="classes";self.update_footer(self.aba_classes.total)
-    def show_enchants(self):
-        self.aba_itens.pack_forget();self.aba_classes.pack_forget()
-        self.aba_enchants.pack(fill="both",expand=True);self.update_btn_states("enchants")
-        self.current_tab="enchants";self.update_footer(self.aba_enchants.total)
-    def update_btn_states(self,ativo):
-        if ativo=="itens":self.btn_itens.config(bg=CORES["botao"],fg=CORES["botao_txt"]);self.btn_classes.config(bg=CORES["card"],fg=CORES["destaque"]);self.btn_enchants.config(bg=CORES["card"],fg=CORES["destaque"])
-        elif ativo=="classes":self.btn_classes.config(bg=CORES["botao"],fg=CORES["botao_txt"]);self.btn_itens.config(bg=CORES["card"],fg=CORES["destaque"]);self.btn_enchants.config(bg=CORES["card"],fg=CORES["destaque"])
-        elif ativo=="enchants":self.btn_enchants.config(bg=CORES["botao"],fg=CORES["botao_txt"]);self.btn_itens.config(bg=CORES["card"],fg=CORES["destaque"]);self.btn_classes.config(bg=CORES["card"],fg=CORES["destaque"])
+        self.title("Calculadora de Flags")
+        self.geometry(f"{D.get('janela_largura',720)}x{D.get('janela_altura',550)}")
+        self.resizable(False,False)
+        self.configure(bg=C["fundo"])
+        self.cur="itens"
+        self.mk_toolbar()
+        self.cnt=tk.Frame(self,bg=C["fundo"]);self.cnt.pack(fill="both",expand=True)
+        self.tabs={"itens":TabItem(self.cnt,self.upd_res),"classes":TabClass(self.cnt,self.upd_res),"enchants":TabEnch(self.cnt,self.upd_res)}
+        self.mk_statusbar()
+        self.tabs["itens"].pack(fill="both",expand=True)
+        self.sw_tab("itens")
+    def mk_toolbar(self):
+        tb=tk.Frame(self,bg=C["header"],height=D.get("toolbar_altura",42));tb.pack(side=tk.TOP,fill="x");tb.pack_propagate(False)
+        c=tk.Frame(tb,bg=C["header"]);c.pack(expand=True)
+        tk.Label(c,text="Modo:",font=(F[0],9,"bold"),fg=C["destaque"],bg=C["header"]).pack(side=tk.LEFT,padx=(0,D.get("label_padx",6)))
+        self.btns={}
+        for txt,key in[("Item","itens"),("Classe","classes"),("Enchant","enchants")]:
+            btn=tk.Button(c,text=txt,command=lambda k=key:self.sw_tab(k),font=(F[0],9,"bold"),bg=C["botao"],fg=C["botao_txt"],activebackground=C["botao_ativo"],activeforeground=C["botao_ativo_txt"],relief="flat",bd=0,width=D.get("botao_largura",80)//7,pady=D.get("botao_pady",6),cursor="hand2")
+            btn.pack(side=tk.LEFT,padx=D.get("botao_padx",2));self.btns[key]=btn
+    def mk_statusbar(self):
+        sb=tk.Frame(self,bg=C["header"],height=D.get("statusbar_altura",42));sb.pack(side=tk.BOTTOM,fill="x");sb.pack_propagate(False)
+        l=tk.Frame(sb,bg=C["header"]);l.pack(side=tk.LEFT,fill="y",padx=D.get("statusbar_padx",8),pady=D.get("statusbar_pady",6))
+        tk.Label(l,text="Resultado:",font=(F[0],9,"bold"),fg=C["destaque"],bg=C["header"]).pack(side=tk.LEFT,padx=(0,D.get("label_padx",6)))
+        self.lbl_val=tk.Label(l,text="0",font=(F[0],10,"bold"),fg=C["texto"],bg=C["header"]);self.lbl_val.pack(side=tk.LEFT,padx=(0,D.get("espacamento_resultado",12)))
+        tk.Label(l,text="Valor:",font=(F[0],9),fg=C["texto"],bg=C["header"]).pack(side=tk.LEFT,padx=(0,4))
+        self.ent=tk.Entry(l,font=(F[0],9),justify="center",width=D.get("entry_largura",18),bg=C["card"],fg=C["texto"],insertbackground=C["destaque"],relief="flat",bd=1);self.ent.pack(side=tk.LEFT,ipady=D.get("entry_pady",3))
+        r=tk.Frame(sb,bg=C["header"]);r.pack(side=tk.RIGHT,fill="y",padx=D.get("statusbar_padx",8),pady=D.get("statusbar_pady",6))
+        self.mk_btn(r,"Marcar").pack(side=tk.LEFT,padx=D.get("botao_padx",2))
+        self.mk_btn(r,"Limpar").pack(side=tk.LEFT,padx=D.get("botao_padx",2))
+        self.mk_btn(r,"Checar").pack(side=tk.LEFT,padx=D.get("botao_padx",2))
+        self.mk_btn(r,"Copiar").pack(side=tk.LEFT,padx=D.get("botao_padx",2))
+    def mk_btn(self,p,txt):
+        cmd={"Marcar":self.mark,"Limpar":self.clr,"Checar":self.chk,"Copiar":self.cpy}[txt]
+        return tk.Button(p,text=txt,command=cmd,font=(F[0],9,"bold"),bg=C["botao"],fg=C["botao_txt"],activebackground=C["botao_ativo"],activeforeground=C["botao_ativo_txt"],relief="flat",bd=0,width=D.get("botao_largura",80)//7,pady=D.get("botao_pady",6),cursor="hand2")
+    def upd_res(self,tot):
+        if self.cur in["itens","enchants"]:self.lbl_val.config(text=f"{tot}")
+        else:self.lbl_val.config(text=f"{i2h(tot)}")
+        self.ent.delete(0,tk.END)
+        if tot!=0:self.ent.insert(0,f"{tot}"if self.cur in["itens","enchants"]else i2h(tot))
+    def chk(self):self.tabs[self.cur].chk(self.ent.get().strip())
+    def cpy(self):
+        v=str(self.tabs[self.cur].t)if self.cur in["itens","enchants"]else i2h(self.tabs[self.cur].t)
+        self.clipboard_clear();self.clipboard_append(v);messagebox.showinfo("Sucesso",f"Valor {v} copiado!")
+    def mark(self):self.tabs[self.cur].mark_all()
+    def clr(self):self.tabs[self.cur].clear_all()
+    def sw_tab(self,k):
+        for key,tab in self.tabs.items():tab.pack_forget()
+        self.tabs[k].pack(fill="both",expand=True);self.cur=k
+        for key,btn in self.btns.items():
+            if key==k:btn.config(bg=C["botao_ativo"],fg=C["botao_ativo_txt"])
+            else:btn.config(bg=C["botao"],fg=C["botao_txt"])
+        self.upd_res(self.tabs[k].t)
 
-if __name__ == "__main__":
-    app=CalculadoraRestricoesApp();app.mainloop()
+if __name__=="__main__":
+    app=App();app.mainloop()
