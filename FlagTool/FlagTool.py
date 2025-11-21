@@ -1,19 +1,11 @@
 import configparser, tkinter as tk
 from tkinter import ttk, messagebox
 
-def cfg(a, s, k, d):
-    i = configparser.ConfigParser()
+def cfg(p, s, k, d):
+    c = configparser.ConfigParser()
     try:
-        i.read(a, encoding="utf-8")
-        return i.get(s, k, fallback=d)
-    except:
-        return d
-
-def cfgi(a, s, k, d):
-    i = configparser.ConfigParser()
-    try:
-        i.read(a, encoding="utf-8")
-        return i.getint(s, k, fallback=d)
+        c.read(p, encoding="utf-8")
+        return c.get(s, k, fallback=d)
     except:
         return d
 
@@ -22,7 +14,15 @@ C = {k: cfg("color.ini", "colors", k, "#000") for k in [
     "button_active", "button_active_text", "frame_selected", "frame_normal",
     "frame_text", "frame_null", "border"
 ]}
-F = (cfg("font.ini", "font", "nome", "Arial"), cfgi("font.ini", "font", "tamanho", 9))
+
+FN = configparser.ConfigParser()
+FN.read("font.ini", encoding="utf-8")
+
+def get_f(sec, mod=""):
+    s = sec if FN.has_section(sec) else "default"
+    n = FN.get(s, "name", fallback=FN.get("default", "name", fallback="Arial"))
+    z = FN.getint(s, "size", fallback=FN.getint("default", "size", fallback=9))
+    return (n, z, mod) if mod else (n, z)
 
 I = configparser.ConfigParser()
 I.read("interface.ini", encoding="utf-8")
@@ -35,8 +35,8 @@ FCONF.optionxform = str
 FCONF.read("flags.ini", encoding="utf-8")
 
 def load_flags():
-    r = [(v, int(k, 0)) for k, v in FCONF["item"].items()]
-    e = [(v, int(k, 0)) for k, v in FCONF["enchant"].items()]
+    r = [(v, int(k, 0)) for k, v in FCONF["item"].items()] if "item" in FCONF else []
+    e = [(v, int(k, 0)) for k, v in FCONF["enchant"].items()] if "enchant" in FCONF else []
     c = [(s.split("_", 1)[1], [(v, k) for k, v in FCONF[s].items()])
          for s in FCONF.sections() if s.startswith("class_")]
     p = [(v, int(k, 0)) for k, v in FCONF["ItemPlus"].items()] if "ItemPlus" in FCONF else []
@@ -61,7 +61,7 @@ class Tab(tk.Frame):
                      highlightthickness=D.get("cell_border", 1), cursor="hand2",
                      width=D.get("cell_width", 140), height=D.get("cell_height", 36))
         f.pack_propagate(False)
-        ft = (F[0], F[1], "bold") if b else F
+        ft = get_f("cell", "bold") if b else get_f("cell")
         l = tk.Label(f, text=txt, font=ft, fg=C["text"], bg=C["frame_normal"], anchor="center")
         l.pack(expand=True, fill=tk.BOTH, padx=D.get("cell_padx", 6), pady=D.get("cell_pady", 6))
         for w in [f, l]:
@@ -86,8 +86,7 @@ class Tab(tk.Frame):
             l.config(bg=C["frame_selected"], fg=C["frame_text"])
         self.upd()
 
-    def upd(self):
-        pass
+    def upd(self): pass
 
     def mark_all(self):
         self.s = set(self.cs.keys())
@@ -112,189 +111,88 @@ class TabItem(Tab):
         nc = 4
         nr = (len(R) + nc - 1) // nc
         for i, (n, v) in enumerate(R):
-            c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
-        for col in range(nc):
-            g.grid_columnconfigure(col, weight=1, uniform="c")
-        for row in range(nr):
-            g.grid_rowconfigure(row, weight=1, uniform="r")
+            self.mk_cell(g, n, v).grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
+        for c in range(nc): g.grid_columnconfigure(c, weight=1, uniform="c")
+        for r in range(nr): g.grid_rowconfigure(r, weight=1, uniform="r")
 
     def upd(self):
-        t = 0
-        for v in self.s:
-            t += v
-        self.t = t
-        self.cb(t)
+        self.t = sum(self.s)
+        self.cb(self.t)
 
     def chk(self, val):
-        if not val.isdigit():
-            messagebox.showwarning("Error", "Invalid decimal value.")
-            return
+        if not val.isdigit(): return messagebox.showwarning("Error", "Invalid decimal value.")
         d = int(val)
-        sel = [v for v in self.cs if (d & v) == v and v != 0]
-        if not sel and d != 0:
-            messagebox.showinfo("Info", "No flag matches.")
-            return
+        if not [v for v in self.cs if (d & v) == v and v != 0] and d != 0: return messagebox.showinfo("Info", "No flag matches.")
         self.s.clear()
         for v, f in self.cs.items():
-            l = f.winfo_children()[0]
-            if (d & v) == v and v != 0:
-                self.s.add(v)
-                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
-                l.config(bg=C["frame_selected"], fg=C["frame_text"])
-            else:
-                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
-                l.config(bg=C["frame_normal"], fg=C["text"])
+            m = (d & v) == v and v != 0
+            if m: self.s.add(v)
+            c, h, t = (C["frame_selected"], C["frame_selected"], C["frame_text"]) if m else (C["frame_normal"], C["border"], C["text"])
+            f.config(bg=c, highlightbackground=h)
+            f.winfo_children()[0].config(bg=c, fg=t)
         self.t = d
         self.cb(d)
 
-class TabItemOP(Tab):
+class TabItemOP(TabItem):
     def __init__(self, p, cb):
-        super().__init__(p, cb)
+        Tab.__init__(self, p, cb)
         g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         nc = 4
         nr = (len(P) + nc - 1) // nc
         for i, (n, v) in enumerate(P):
-            c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
-        for col in range(nc):
-            g.grid_columnconfigure(col, weight=1, uniform="c")
-        for row in range(nr):
-            g.grid_rowconfigure(row, weight=1, uniform="r")
-
-    def upd(self):
-        t = 0
-        for v in self.s:
-            t += v
-        self.t = t
-        self.cb(t)
-
-    def chk(self, val):
-        if not val.isdigit():
-            messagebox.showwarning("Error", "Invalid decimal value.")
-            return
-        d = int(val)
-        sel = [v for v in self.cs if (d & v) == v and v != 0]
-        if not sel and d != 0:
-            messagebox.showinfo("Info", "No flag matches.")
-            return
-        self.s.clear()
-        for v, f in self.cs.items():
-            l = f.winfo_children()[0]
-            if (d & v) == v and v != 0:
-                self.s.add(v)
-                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
-                l.config(bg=C["frame_selected"], fg=C["frame_text"])
-            else:
-                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
-                l.config(bg=C["frame_normal"], fg=C["text"])
-        self.t = d
-        self.cb(d)
+            self.mk_cell(g, n, v).grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
+        for c in range(nc): g.grid_columnconfigure(c, weight=1, uniform="c")
+        for r in range(nr): g.grid_rowconfigure(r, weight=1, uniform="r")
 
 class TabClass(Tab):
     def __init__(self, p, cb):
         super().__init__(p, cb)
         g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
-        n = CLS[0][1]
-        o = CLS[1:]
-        nc = 1 + len(o)
-        mr = max(len(x[1]) for x in o)
-        tr = mr
+        n, o = CLS[0][1], CLS[1:]
+        tr = max(len(x[1]) for x in o)
         for r in range(tr):
-            if r < len(n):
-                nm, hid = n[r]
-                c = self.mk_cell(g, nm, hid, b=True)
-                c.grid(row=r, column=0, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
-            else:
-                c = self.mk_null(g)
-                c.grid(row=r, column=0, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
+            if r < len(n): self.mk_cell(g, n[r][0], n[r][1], b=True).grid(row=r, column=0, sticky="nsew", padx=3, pady=3)
+            else: self.mk_null(g).grid(row=r, column=0, sticky="nsew", padx=3, pady=3)
         for col, (_, cls) in enumerate(o, start=1):
             for r in range(tr):
-                if r < len(cls):
-                    nm, hid = cls[r]
-                    c = self.mk_cell(g, nm, hid)
-                    c.grid(row=r, column=col, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
-        for col in range(nc):
-            g.grid_columnconfigure(col, weight=1, uniform="c")
-        for row in range(tr):
-            g.grid_rowconfigure(row, weight=1, uniform="r")
+                if r < len(cls): self.mk_cell(g, cls[r][0], cls[r][1]).grid(row=r, column=col, sticky="nsew", padx=3, pady=3)
+        for c in range(1 + len(o)): g.grid_columnconfigure(c, weight=1, uniform="c")
+        for r in range(tr): g.grid_rowconfigure(r, weight=1, uniform="r")
 
     def upd(self):
         t = 0
-        for h in self.s:
-            t |= h2i(h)
+        for h in self.s: t |= h2i(h)
         self.t = t
         self.cb(t)
 
     def chk(self, val):
-        if val.lower().startswith("0x"):
-            val = val[2:]
-        if not is_hex(val):
-            messagebox.showwarning("Error", "Invalid hexadecimal value.")
-            return
+        if val.lower().startswith("0x"): val = val[2:]
+        if not is_hex(val): return messagebox.showwarning("Error", "Invalid hexadecimal value.")
         d = int(val, 16)
-        sel = [h for h in self.cs if (d & h2i(h)) == h2i(h) and h2i(h) != 0]
-        if not sel and d != 0:
-            messagebox.showinfo("Info", "No flag matches.")
-            return
+        if not [h for h in self.cs if (d & h2i(h)) == h2i(h) and h2i(h) != 0] and d != 0: return messagebox.showinfo("Info", "No flag matches.")
         self.s.clear()
         for h, f in self.cs.items():
-            l = f.winfo_children()[0]
-            if (d & h2i(h)) == h2i(h) and h2i(h) != 0:
-                self.s.add(h)
-                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
-                l.config(bg=C["frame_selected"], fg=C["frame_text"])
-            else:
-                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
-                l.config(bg=C["frame_normal"], fg=C["text"])
+            m = (d & h2i(h)) == h2i(h) and h2i(h) != 0
+            if m: self.s.add(h)
+            c, bg, fg = (C["frame_selected"], C["frame_selected"], C["frame_text"]) if m else (C["frame_normal"], C["border"], C["text"])
+            f.config(bg=c, highlightbackground=bg)
+            f.winfo_children()[0].config(bg=c, fg=fg)
         self.t = d
         self.cb(d)
 
-class TabEnch(Tab):
+class TabEnch(TabItem):
     def __init__(self, p, cb):
-        super().__init__(p, cb)
+        Tab.__init__(self, p, cb)
         g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         nc = 4
         nr = (len(E) + nc - 1) // nc
         for i, (n, v) in enumerate(E):
-            c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
-        for col in range(nc):
-            g.grid_columnconfigure(col, weight=1, uniform="c")
-        for row in range(nr):
-            g.grid_rowconfigure(row, weight=1, uniform="r")
-
-    def upd(self):
-        t = 0
-        for v in self.s:
-            t += v
-        self.t = t
-        self.cb(t)
-
-    def chk(self, val):
-        if not val.isdigit():
-            messagebox.showwarning("Error", "Invalid decimal value.")
-            return
-        d = int(val)
-        sel = [v for v in self.cs if (d & v) == v and v != 0]
-        if not sel and d != 0:
-            messagebox.showinfo("Info", "No flag matches.")
-            return
-        self.s.clear()
-        for v, f in self.cs.items():
-            l = f.winfo_children()[0]
-            if (d & v) == v and v != 0:
-                self.s.add(v)
-                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
-                l.config(bg=C["frame_selected"], fg=C["frame_text"])
-            else:
-                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
-                l.config(bg=C["frame_normal"], fg=C["text"])
-        self.t = d
-        self.cb(d)
+            self.mk_cell(g, n, v).grid(row=i % nr, column=i // nr, sticky="nsew", padx=3, pady=3)
+        for c in range(nc): g.grid_columnconfigure(c, weight=1, uniform="c")
+        for r in range(nr): g.grid_rowconfigure(r, weight=1, uniform="r")
 
 class App(tk.Tk):
     def __init__(self):
@@ -323,10 +221,10 @@ class App(tk.Tk):
         tb.pack_propagate(False)
         c = tk.Frame(tb, bg=C["header"])
         c.pack(expand=True, padx=D.get("toolbar_padx", 8), pady=D.get("toolbar_pady", 6))
-        tk.Label(c, font=(F[0], 9, "bold"), fg=C["highlight"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
+        tk.Label(c, font=get_f("header", "bold"), fg=C["highlight"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
         self.btns = {}
         for txt, key in [("Item", "itens"), ("ItemPlus", "ItemPlus"), ("Class", "classes"), ("Enchant", "enchants")]:
-            btn = tk.Button(c, text=txt, command=lambda k=key: self.sw_tab(k), font=(F[0], 9, "bold"),
+            btn = tk.Button(c, text=txt, command=lambda k=key: self.sw_tab(k), font=get_f("tab", "bold"),
                             bg=C["button"], fg=C["button_text"], activebackground=C["button_active"], activeforeground=C["button_active_text"],
                             relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
             btn.pack(side=tk.LEFT, padx=D.get("button_padx", 2))
@@ -341,7 +239,7 @@ class App(tk.Tk):
         pd = D.get("button_padx", 2)
         self.mk_btn(c, "Check").pack(side=tk.LEFT, padx=pd)
         self.ent = tk.Entry(
-            c, font=(F[0], 9), justify="center", width=D.get("entry_width", 18),
+            c, font=get_f("entry"), justify="center", width=D.get("entry_width", 18),
             bg=C["card"], fg=C["text"], insertbackground=C["highlight"], relief="flat", bd=1
         )
         self.ent.pack(side=tk.LEFT, ipady=D.get("button_pady", 6), padx=pd)
@@ -351,42 +249,28 @@ class App(tk.Tk):
 
     def mk_btn(self, p, txt):
         cmd = {"Mark": self.mark, "Clear": self.clr, "Check": self.chk, "Copy": self.cpy}[txt]
-        return tk.Button(p, text=txt, command=cmd, font=(F[0], 9, "bold"),
+        return tk.Button(p, text=txt, command=cmd, font=get_f("button", "bold"),
                          bg=C["button"], fg=C["button_text"], activebackground=C["button_active"], activeforeground=C["button_active_text"],
                          relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
 
     def upd_res(self, tot):
         self.ent.delete(0, tk.END)
-        if tot != 0:
-            self.ent.insert(0, f"{tot}" if self.cur in ["itens", "ItemPlus", "enchants"] else i2h(tot))
+        if tot != 0: self.ent.insert(0, f"{tot}" if self.cur in ["itens", "ItemPlus", "enchants"] else i2h(tot))
 
-    def chk(self):
-        self.tabs[self.cur].chk(self.ent.get().strip())
-
+    def chk(self): self.tabs[self.cur].chk(self.ent.get().strip())
     def cpy(self):
         v = (str(self.tabs[self.cur].t) if self.cur in ["itens", "ItemPlus", "enchants"] else i2h(self.tabs[self.cur].t))
-        self.clipboard_clear()
-        self.clipboard_append(v)
-        messagebox.showinfo("Success", f"Value {v} copied!")
-
-    def mark(self):
-        self.tabs[self.cur].mark_all()
-
-    def clr(self):
-        self.tabs[self.cur].clear_all()
+        self.clipboard_clear(); self.clipboard_append(v); messagebox.showinfo("Success", f"Value {v} copied!")
+    def mark(self): self.tabs[self.cur].mark_all()
+    def clr(self): self.tabs[self.cur].clear_all()
 
     def sw_tab(self, k):
-        for key, tab in self.tabs.items():
-            tab.pack_forget()
+        for key, tab in self.tabs.items(): tab.pack_forget()
         self.tabs[k].pack(fill="both", expand=True)
         self.cur = k
         for key, btn in self.btns.items():
-            if key == k:
-                btn.config(bg=C["button_active"], fg=C["button_active_text"])
-            else:
-                btn.config(bg=C["button"], fg=C["button_text"])
+            btn.config(bg=C["button_active"] if key == k else C["button"], fg=C["button_active_text"] if key == k else C["button_text"])
         self.upd_res(self.tabs[k].t)
 
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    App().mainloop()
