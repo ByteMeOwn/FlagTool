@@ -373,3 +373,6 @@ $RECYCLE.BIN/
 
 # Windows shortcuts
 *.lnk
+
+#Ico
+*.ico
