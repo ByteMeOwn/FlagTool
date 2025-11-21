@@ -17,12 +17,18 @@ def cfgi(a, s, k, d):
     except:
         return d
 
-C = {k: cfg("color.ini", "colors", k, "#000") for k in ["fundo", "header", "card", "destaque", "texto", "botao", "botao_txt", "botao_ativo", "botao_ativo_txt", "quadro_selec", "quadro_normal", "quadro_texto", "quadro_null", "borda"]}
+C = {k: cfg("color.ini", "colors", k, "#000") for k in [
+    "fundo", "header", "card", "destaque", "texto", "botao", "botao_txt",
+    "botao_ativo", "botao_ativo_txt", "quadro_selec", "quadro_normal",
+    "quadro_texto", "quadro_null", "borda"
+]}
 F = (cfg("font.ini", "font", "nome", "Arial"), cfgi("font.ini", "font", "tamanho", 9))
 
 I = configparser.ConfigParser()
 I.read("interface.ini", encoding="utf-8")
-D = ({s+"_"+k: I.getint(s, k, fallback=0) for s in ["janela", "toolbar", "statusbar", "celula", "botao", "label", "entry", "espacamento"] for k in I.options(s)} if I.sections() else {})
+D = ({s + "_" + k: I.getint(s, k, fallback=0)
+      for s in ["janela", "toolbar", "statusbar", "celula", "botao", "label", "entry", "espacamento"]
+      for k in I.options(s)} if I.sections() else {})
 
 FCONF = configparser.ConfigParser()
 FCONF.optionxform = str
@@ -31,7 +37,8 @@ FCONF.read("flags.ini", encoding="utf-8")
 def load_flags():
     r = [(v, int(k, 0)) for k, v in FCONF["item"].items()]
     e = [(v, int(k, 0)) for k, v in FCONF["enchant"].items()]
-    c = [(s.split("_", 1)[1], [(v, k) for k, v in FCONF[s].items()]) for s in FCONF.sections() if s.startswith("classe_")]
+    c = [(s.split("_", 1)[1], [(v, k) for k, v in FCONF[s].items()])
+         for s in FCONF.sections() if s.startswith("class_")]
     p = [(v, int(k, 0)) for k, v in FCONF["ItemPlus"].items()] if "ItemPlus" in FCONF else []
     return r, e, c, p
 
@@ -50,7 +57,9 @@ class Tab(tk.Frame):
         self.cb = cb
 
     def mk_cell(self, p, txt, val, b=False):
-        f = tk.Frame(p, bg=C["quadro_normal"], highlightbackground=C["borda"], highlightthickness=D.get("celula_borda", 1), cursor="hand2", width=D.get("celula_largura", 140), height=D.get("celula_altura", 36))
+        f = tk.Frame(p, bg=C["quadro_normal"], highlightbackground=C["borda"],
+                     highlightthickness=D.get("celula_borda", 1), cursor="hand2",
+                     width=D.get("celula_largura", 140), height=D.get("celula_altura", 36))
         f.pack_propagate(False)
         ft = (F[0], F[1], "bold") if b else F
         l = tk.Label(f, text=txt, font=ft, fg=C["texto"], bg=C["quadro_normal"], anchor="center")
@@ -119,12 +128,12 @@ class TabItem(Tab):
 
     def chk(self, val):
         if not val.isdigit():
-            messagebox.showwarning("Erro", "Valor decimal inválido.")
+            messagebox.showwarning("Error", "Invalid decimal value.")
             return
         d = int(val)
         sel = [v for v in self.cs if (d & v) == v and v != 0]
         if not sel and d != 0:
-            messagebox.showinfo("Info", "Nenhuma flag corresponde.")
+            messagebox.showinfo("Info", "No flag matches.")
             return
         self.s.clear()
         for v, f in self.cs.items():
@@ -163,12 +172,12 @@ class TabItemOP(Tab):
 
     def chk(self, val):
         if not val.isdigit():
-            messagebox.showwarning("Erro", "Valor decimal inválido.")
+            messagebox.showwarning("Error", "Invalid decimal value.")
             return
         d = int(val)
         sel = [v for v in self.cs if (d & v) == v and v != 0]
         if not sel and d != 0:
-            messagebox.showinfo("Info", "Nenhuma flag corresponde.")
+            messagebox.showinfo("Info", "No flag matches.")
             return
         self.s.clear()
         for v, f in self.cs.items():
@@ -223,12 +232,12 @@ class TabClass(Tab):
         if val.lower().startswith("0x"):
             val = val[2:]
         if not is_hex(val):
-            messagebox.showwarning("Erro", "Valor hexadecimal inválido.")
+            messagebox.showwarning("Error", "Invalid hexadecimal value.")
             return
         d = int(val, 16)
         sel = [h for h in self.cs if (d & h2i(h)) == h2i(h) and h2i(h) != 0]
         if not sel and d != 0:
-            messagebox.showinfo("Info", "Nenhuma flag corresponde.")
+            messagebox.showinfo("Info", "No flag matches.")
             return
         self.s.clear()
         for h, f in self.cs.items():
@@ -267,12 +276,12 @@ class TabEnch(Tab):
 
     def chk(self, val):
         if not val.isdigit():
-            messagebox.showwarning("Erro", "Valor decimal inválido.")
+            messagebox.showwarning("Error", "Invalid decimal value.")
             return
         d = int(val)
         sel = [v for v in self.cs if (d & v) == v and v != 0]
         if not sel and d != 0:
-            messagebox.showinfo("Info", "Nenhuma flag corresponde.")
+            messagebox.showinfo("Info", "No flag matches.")
             return
         self.s.clear()
         for v, f in self.cs.items():
@@ -290,7 +299,7 @@ class TabEnch(Tab):
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Calculadora de Flags")
+        self.title("Flags Calculator")
         self.geometry(f"{D.get('janela_largura', 720)}x{D.get('janela_altura', 550)}")
         self.resizable(False, False)
         self.configure(bg=C["fundo"])
@@ -314,12 +323,12 @@ class App(tk.Tk):
         tb.pack_propagate(False)
         c = tk.Frame(tb, bg=C["header"])
         c.pack(expand=True, padx=D.get("toolbar_padx", 8), pady=D.get("toolbar_pady", 6))
-        tk.Label(c, text="Modo:", font=(F[0], 9, "bold"), fg=C["destaque"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
+        tk.Label(c, font=(F[0], 9, "bold"), fg=C["destaque"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
         self.btns = {}
-        for txt, key in [("Item", "itens"), ("ItemPlus", "ItemPlus"), ("Classe", "classes"), ("Enchant", "enchants")]:
+        for txt, key in [("Item", "itens"), ("ItemPlus", "ItemPlus"), ("Class", "classes"), ("Enchant", "enchants")]:
             btn = tk.Button(c, text=txt, command=lambda k=key: self.sw_tab(k), font=(F[0], 9, "bold"),
-                bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
-                relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
+                            bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
+                            relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
             btn.pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
             self.btns[key] = btn
 
@@ -329,25 +338,23 @@ class App(tk.Tk):
         sb.pack_propagate(False)
         l = tk.Frame(sb, bg=C["header"])
         l.pack(side=tk.LEFT, fill="y", padx=D.get("statusbar_padx", 8), pady=D.get("statusbar_pady", 6))
-        self.mk_btn(l, "Checar").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
+        self.mk_btn(l, "Check").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
         self.ent = tk.Entry(
             l, font=(F[0], 9), justify="center", width=D.get("entry_largura", 18),
             bg=C["card"], fg=C["texto"], insertbackground=C["destaque"], relief="flat", bd=1
         )
         self.ent.pack(side=tk.LEFT, ipady=D.get("botao_pady", 6))
-        self.mk_btn(l, "Copiar").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
+        self.mk_btn(l, "Copy").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
         r = tk.Frame(sb, bg=C["header"])
         r.pack(side=tk.RIGHT, fill="y", padx=D.get("statusbar_padx", 8), pady=D.get("statusbar_pady", 6))
-        self.mk_btn(r, "Marcar").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
-        self.mk_btn(r, "Limpar").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
-
-    
+        self.mk_btn(r, "Mark").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
+        self.mk_btn(r, "Clear").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
 
     def mk_btn(self, p, txt):
-        cmd = {"Marcar": self.mark, "Limpar": self.clr, "Checar": self.chk, "Copiar": self.cpy}[txt]
+        cmd = {"Mark": self.mark, "Clear": self.clr, "Check": self.chk, "Copy": self.cpy}[txt]
         return tk.Button(p, text=txt, command=cmd, font=(F[0], 9, "bold"),
-            bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
-            relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
+                         bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
+                         relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
 
     def upd_res(self, tot):
         self.ent.delete(0, tk.END)
@@ -361,7 +368,7 @@ class App(tk.Tk):
         v = (str(self.tabs[self.cur].t) if self.cur in ["itens", "ItemPlus", "enchants"] else i2h(self.tabs[self.cur].t))
         self.clipboard_clear()
         self.clipboard_append(v)
-        messagebox.showinfo("Sucesso", f"Valor {v} copiado!")
+        messagebox.showinfo("Success", f"Value {v} copied!")
 
     def mark(self):
         self.tabs[self.cur].mark_all()
