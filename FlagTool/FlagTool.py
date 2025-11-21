@@ -18,9 +18,9 @@ def cfgi(a, s, k, d):
         return d
 
 C = {k: cfg("color.ini", "colors", k, "#000") for k in [
-    "fundo", "header", "card", "destaque", "texto", "botao", "botao_txt",
-    "botao_ativo", "botao_ativo_txt", "quadro_selec", "quadro_normal",
-    "quadro_texto", "quadro_null", "borda"
+    "background", "header", "card", "highlight", "text", "button", "button_text",
+    "button_active", "button_active_text", "frame_selected", "frame_normal",
+    "frame_text", "frame_null", "border"
 ]}
 F = (cfg("font.ini", "font", "nome", "Arial"), cfgi("font.ini", "font", "tamanho", 9))
 
@@ -48,45 +48,42 @@ h2i = lambda h: int(h, 16)
 i2h = lambda v: f"{v:X}"
 is_hex = lambda v: all(c in "0123456789abcdefABCDEF" for c in (v[2:] if v.lower().startswith("0x") else v)) and v != ""
 
-# (Classes Tab, TabItem, TabItemOP, TabClass, TabEnch, App) remain the same;
-# replace all 'janela', 'largura', 'altura', etc. to the English versions in D.get(...)
-
 class Tab(tk.Frame):
     def __init__(self, p, cb):
-        super().__init__(p, bg=C["fundo"])
+        super().__init__(p, bg=C["background"])
         self.s = set()
         self.cs = {}
         self.t = 0
         self.cb = cb
 
     def mk_cell(self, p, txt, val, b=False):
-        f = tk.Frame(p, bg=C["quadro_normal"], highlightbackground=C["borda"],
+        f = tk.Frame(p, bg=C["frame_normal"], highlightbackground=C["border"],
                      highlightthickness=D.get("cell_border", 1), cursor="hand2",
                      width=D.get("cell_width", 140), height=D.get("cell_height", 36))
         f.pack_propagate(False)
         ft = (F[0], F[1], "bold") if b else F
-        l = tk.Label(f, text=txt, font=ft, fg=C["texto"], bg=C["quadro_normal"], anchor="center")
+        l = tk.Label(f, text=txt, font=ft, fg=C["text"], bg=C["frame_normal"], anchor="center")
         l.pack(expand=True, fill=tk.BOTH, padx=D.get("cell_padx", 6), pady=D.get("cell_pady", 6))
         for w in [f, l]:
             w.bind("<Button-1>", lambda e, v=val: self.tog(v))
-            w.bind("<Enter>", lambda e, fr=f: fr.config(highlightbackground=C["destaque"]))
-            w.bind("<Leave>", lambda e, fr=f, vl=val: fr.config(highlightbackground=(C["quadro_selec"] if vl in self.s else C["borda"])))
+            w.bind("<Enter>", lambda e, fr=f: fr.config(highlightbackground=C["highlight"]))
+            w.bind("<Leave>", lambda e, fr=f, vl=val: fr.config(highlightbackground=(C["frame_selected"] if vl in self.s else C["border"])))
         self.cs[val] = f
         return f
 
     def mk_null(self, p):
-        return tk.Frame(p, bg=C["quadro_null"], highlightthickness=0)
+        return tk.Frame(p, bg=C["frame_null"], highlightthickness=0)
 
     def tog(self, v):
         f, l = self.cs[v], self.cs[v].winfo_children()[0]
         if v in self.s:
             self.s.remove(v)
-            f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-            l.config(bg=C["quadro_normal"], fg=C["texto"])
+            f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+            l.config(bg=C["frame_normal"], fg=C["text"])
         else:
             self.s.add(v)
-            f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-            l.config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+            f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+            l.config(bg=C["frame_selected"], fg=C["frame_text"])
         self.upd()
 
     def upd(self):
@@ -95,22 +92,22 @@ class Tab(tk.Frame):
     def mark_all(self):
         self.s = set(self.cs.keys())
         for f in self.cs.values():
-            f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-            f.winfo_children()[0].config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+            f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+            f.winfo_children()[0].config(bg=C["frame_selected"], fg=C["frame_text"])
         self.upd()
 
     def clear_all(self):
         self.s.clear()
         self.t = 0
         for f in self.cs.values():
-            f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-            f.winfo_children()[0].config(bg=C["quadro_normal"], fg=C["texto"])
+            f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+            f.winfo_children()[0].config(bg=C["frame_normal"], fg=C["text"])
         self.upd()
 
 class TabItem(Tab):
     def __init__(self, p, cb):
         super().__init__(p, cb)
-        g = tk.Frame(self, bg=C["fundo"])
+        g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         nc = 4
         nr = (len(R) + nc - 1) // nc
@@ -143,18 +140,18 @@ class TabItem(Tab):
             l = f.winfo_children()[0]
             if (d & v) == v and v != 0:
                 self.s.add(v)
-                f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-                l.config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+                l.config(bg=C["frame_selected"], fg=C["frame_text"])
             else:
-                f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-                l.config(bg=C["quadro_normal"], fg=C["texto"])
+                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+                l.config(bg=C["frame_normal"], fg=C["text"])
         self.t = d
         self.cb(d)
 
 class TabItemOP(Tab):
     def __init__(self, p, cb):
         super().__init__(p, cb)
-        g = tk.Frame(self, bg=C["fundo"])
+        g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         nc = 4
         nr = (len(P) + nc - 1) // nc
@@ -187,18 +184,18 @@ class TabItemOP(Tab):
             l = f.winfo_children()[0]
             if (d & v) == v and v != 0:
                 self.s.add(v)
-                f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-                l.config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+                l.config(bg=C["frame_selected"], fg=C["frame_text"])
             else:
-                f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-                l.config(bg=C["quadro_normal"], fg=C["texto"])
+                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+                l.config(bg=C["frame_normal"], fg=C["text"])
         self.t = d
         self.cb(d)
 
 class TabClass(Tab):
     def __init__(self, p, cb):
         super().__init__(p, cb)
-        g = tk.Frame(self, bg=C["fundo"])
+        g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         n = CLS[0][1]
         o = CLS[1:]
@@ -247,18 +244,18 @@ class TabClass(Tab):
             l = f.winfo_children()[0]
             if (d & h2i(h)) == h2i(h) and h2i(h) != 0:
                 self.s.add(h)
-                f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-                l.config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+                l.config(bg=C["frame_selected"], fg=C["frame_text"])
             else:
-                f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-                l.config(bg=C["quadro_normal"], fg=C["texto"])
+                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+                l.config(bg=C["frame_normal"], fg=C["text"])
         self.t = d
         self.cb(d)
 
 class TabEnch(Tab):
     def __init__(self, p, cb):
         super().__init__(p, cb)
-        g = tk.Frame(self, bg=C["fundo"])
+        g = tk.Frame(self, bg=C["background"])
         g.pack(expand=True)
         nc = 4
         nr = (len(E) + nc - 1) // nc
@@ -291,11 +288,11 @@ class TabEnch(Tab):
             l = f.winfo_children()[0]
             if (d & v) == v and v != 0:
                 self.s.add(v)
-                f.config(bg=C["quadro_selec"], highlightbackground=C["quadro_selec"])
-                l.config(bg=C["quadro_selec"], fg=C["quadro_texto"])
+                f.config(bg=C["frame_selected"], highlightbackground=C["frame_selected"])
+                l.config(bg=C["frame_selected"], fg=C["frame_text"])
             else:
-                f.config(bg=C["quadro_normal"], highlightbackground=C["borda"])
-                l.config(bg=C["quadro_normal"], fg=C["texto"])
+                f.config(bg=C["frame_normal"], highlightbackground=C["border"])
+                l.config(bg=C["frame_normal"], fg=C["text"])
         self.t = d
         self.cb(d)
 
@@ -305,10 +302,10 @@ class App(tk.Tk):
         self.title("Flags Calculator")
         self.geometry(f"{D.get('window_width', 720)}x{D.get('window_height', 550)}")
         self.resizable(False, False)
-        self.configure(bg=C["fundo"])
+        self.configure(bg=C["background"])
         self.cur = "itens"
         self.mk_toolbar()
-        self.cnt = tk.Frame(self, bg=C["fundo"])
+        self.cnt = tk.Frame(self, bg=C["background"])
         self.cnt.pack(fill="both", expand=True)
         self.tabs = {
             "itens": TabItem(self.cnt, self.upd_res),
@@ -326,11 +323,11 @@ class App(tk.Tk):
         tb.pack_propagate(False)
         c = tk.Frame(tb, bg=C["header"])
         c.pack(expand=True, padx=D.get("toolbar_padx", 8), pady=D.get("toolbar_pady", 6))
-        tk.Label(c, font=(F[0], 9, "bold"), fg=C["destaque"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
+        tk.Label(c, font=(F[0], 9, "bold"), fg=C["highlight"], bg=C["header"]).pack(side=tk.LEFT, padx=(0, D.get("label_padx", 6)))
         self.btns = {}
         for txt, key in [("Item", "itens"), ("ItemPlus", "ItemPlus"), ("Class", "classes"), ("Enchant", "enchants")]:
             btn = tk.Button(c, text=txt, command=lambda k=key: self.sw_tab(k), font=(F[0], 9, "bold"),
-                            bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
+                            bg=C["button"], fg=C["button_text"], activebackground=C["button_active"], activeforeground=C["button_active_text"],
                             relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
             btn.pack(side=tk.LEFT, padx=D.get("button_padx", 2))
             self.btns[key] = btn
@@ -345,7 +342,7 @@ class App(tk.Tk):
         self.mk_btn(c, "Check").pack(side=tk.LEFT, padx=pd)
         self.ent = tk.Entry(
             c, font=(F[0], 9), justify="center", width=D.get("entry_width", 18),
-            bg=C["card"], fg=C["texto"], insertbackground=C["destaque"], relief="flat", bd=1
+            bg=C["card"], fg=C["text"], insertbackground=C["highlight"], relief="flat", bd=1
         )
         self.ent.pack(side=tk.LEFT, ipady=D.get("button_pady", 6), padx=pd)
         self.mk_btn(c, "Copy").pack(side=tk.LEFT, padx=pd)
@@ -355,7 +352,7 @@ class App(tk.Tk):
     def mk_btn(self, p, txt):
         cmd = {"Mark": self.mark, "Clear": self.clr, "Check": self.chk, "Copy": self.cpy}[txt]
         return tk.Button(p, text=txt, command=cmd, font=(F[0], 9, "bold"),
-                         bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
+                         bg=C["button"], fg=C["button_text"], activebackground=C["button_active"], activeforeground=C["button_active_text"],
                          relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
 
     def upd_res(self, tot):
@@ -385,9 +382,9 @@ class App(tk.Tk):
         self.cur = k
         for key, btn in self.btns.items():
             if key == k:
-                btn.config(bg=C["botao_ativo"], fg=C["botao_ativo_txt"])
+                btn.config(bg=C["button_active"], fg=C["button_active_text"])
             else:
-                btn.config(bg=C["botao"], fg=C["botao_txt"])
+                btn.config(bg=C["button"], fg=C["button_text"])
         self.upd_res(self.tabs[k].t)
 
 if __name__ == "__main__":
