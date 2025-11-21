@@ -27,7 +27,7 @@ F = (cfg("font.ini", "font", "nome", "Arial"), cfgi("font.ini", "font", "tamanho
 I = configparser.ConfigParser()
 I.read("interface.ini", encoding="utf-8")
 D = ({s + "_" + k: I.getint(s, k, fallback=0)
-      for s in ["janela", "toolbar", "statusbar", "celula", "botao", "label", "entry", "espacamento"]
+      for s in ["window", "toolbar", "statusbar", "cell", "button", "label", "entry", "spacing"]
       for k in I.options(s)} if I.sections() else {})
 
 FCONF = configparser.ConfigParser()
@@ -48,6 +48,9 @@ h2i = lambda h: int(h, 16)
 i2h = lambda v: f"{v:X}"
 is_hex = lambda v: all(c in "0123456789abcdefABCDEF" for c in (v[2:] if v.lower().startswith("0x") else v)) and v != ""
 
+# (Classes Tab, TabItem, TabItemOP, TabClass, TabEnch, App) remain the same;
+# replace all 'janela', 'largura', 'altura', etc. to the English versions in D.get(...)
+
 class Tab(tk.Frame):
     def __init__(self, p, cb):
         super().__init__(p, bg=C["fundo"])
@@ -58,12 +61,12 @@ class Tab(tk.Frame):
 
     def mk_cell(self, p, txt, val, b=False):
         f = tk.Frame(p, bg=C["quadro_normal"], highlightbackground=C["borda"],
-                     highlightthickness=D.get("celula_borda", 1), cursor="hand2",
-                     width=D.get("celula_largura", 140), height=D.get("celula_altura", 36))
+                     highlightthickness=D.get("cell_border", 1), cursor="hand2",
+                     width=D.get("cell_width", 140), height=D.get("cell_height", 36))
         f.pack_propagate(False)
         ft = (F[0], F[1], "bold") if b else F
         l = tk.Label(f, text=txt, font=ft, fg=C["texto"], bg=C["quadro_normal"], anchor="center")
-        l.pack(expand=True, fill=tk.BOTH, padx=D.get("celula_padx", 6), pady=D.get("celula_pady", 6))
+        l.pack(expand=True, fill=tk.BOTH, padx=D.get("cell_padx", 6), pady=D.get("cell_pady", 6))
         for w in [f, l]:
             w.bind("<Button-1>", lambda e, v=val: self.tog(v))
             w.bind("<Enter>", lambda e, fr=f: fr.config(highlightbackground=C["destaque"]))
@@ -113,7 +116,7 @@ class TabItem(Tab):
         nr = (len(R) + nc - 1) // nc
         for i, (n, v) in enumerate(R):
             c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
         for col in range(nc):
             g.grid_columnconfigure(col, weight=1, uniform="c")
         for row in range(nr):
@@ -157,7 +160,7 @@ class TabItemOP(Tab):
         nr = (len(P) + nc - 1) // nc
         for i, (n, v) in enumerate(P):
             c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
         for col in range(nc):
             g.grid_columnconfigure(col, weight=1, uniform="c")
         for row in range(nr):
@@ -206,16 +209,16 @@ class TabClass(Tab):
             if r < len(n):
                 nm, hid = n[r]
                 c = self.mk_cell(g, nm, hid, b=True)
-                c.grid(row=r, column=0, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+                c.grid(row=r, column=0, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
             else:
                 c = self.mk_null(g)
-                c.grid(row=r, column=0, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+                c.grid(row=r, column=0, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
         for col, (_, cls) in enumerate(o, start=1):
             for r in range(tr):
                 if r < len(cls):
                     nm, hid = cls[r]
                     c = self.mk_cell(g, nm, hid)
-                    c.grid(row=r, column=col, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+                    c.grid(row=r, column=col, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
         for col in range(nc):
             g.grid_columnconfigure(col, weight=1, uniform="c")
         for row in range(tr):
@@ -261,7 +264,7 @@ class TabEnch(Tab):
         nr = (len(E) + nc - 1) // nc
         for i, (n, v) in enumerate(E):
             c = self.mk_cell(g, n, v)
-            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("celula_padding", 3), pady=D.get("celula_padding", 3))
+            c.grid(row=i % nr, column=i // nr, sticky="nsew", padx=D.get("cell_padding", 3), pady=D.get("cell_padding", 3))
         for col in range(nc):
             g.grid_columnconfigure(col, weight=1, uniform="c")
         for row in range(nr):
@@ -300,7 +303,7 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Flags Calculator")
-        self.geometry(f"{D.get('janela_largura', 720)}x{D.get('janela_altura', 550)}")
+        self.geometry(f"{D.get('window_width', 720)}x{D.get('window_height', 550)}")
         self.resizable(False, False)
         self.configure(bg=C["fundo"])
         self.cur = "itens"
@@ -318,7 +321,7 @@ class App(tk.Tk):
         self.sw_tab("itens")
 
     def mk_toolbar(self):
-        tb = tk.Frame(self, bg=C["header"], height=D.get("toolbar_altura", 42))
+        tb = tk.Frame(self, bg=C["header"], height=D.get("toolbar_height", 42))
         tb.pack(side=tk.TOP, fill="x")
         tb.pack_propagate(False)
         c = tk.Frame(tb, bg=C["header"])
@@ -328,33 +331,32 @@ class App(tk.Tk):
         for txt, key in [("Item", "itens"), ("ItemPlus", "ItemPlus"), ("Class", "classes"), ("Enchant", "enchants")]:
             btn = tk.Button(c, text=txt, command=lambda k=key: self.sw_tab(k), font=(F[0], 9, "bold"),
                             bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
-                            relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
-            btn.pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
+                            relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
+            btn.pack(side=tk.LEFT, padx=D.get("button_padx", 2))
             self.btns[key] = btn
 
     def mk_statusbar(self):
-        sb = tk.Frame(self, bg=C["header"], height=D.get("statusbar_altura", 42))
+        sb = tk.Frame(self, bg=C["header"], height=D.get("statusbar_height", 42))
         sb.pack(side=tk.BOTTOM, fill="x")
         sb.pack_propagate(False)
-        l = tk.Frame(sb, bg=C["header"])
-        l.pack(side=tk.LEFT, fill="y", padx=D.get("statusbar_padx", 8), pady=D.get("statusbar_pady", 6))
-        self.mk_btn(l, "Check").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
+        c = tk.Frame(sb, bg=C["header"])
+        c.pack(expand=True, padx=D.get("statusbar_padx", 8), pady=D.get("statusbar_pady", 6))
+        pd = D.get("button_padx", 2)
+        self.mk_btn(c, "Check").pack(side=tk.LEFT, padx=pd)
         self.ent = tk.Entry(
-            l, font=(F[0], 9), justify="center", width=D.get("entry_largura", 18),
+            c, font=(F[0], 9), justify="center", width=D.get("entry_width", 18),
             bg=C["card"], fg=C["texto"], insertbackground=C["destaque"], relief="flat", bd=1
         )
-        self.ent.pack(side=tk.LEFT, ipady=D.get("botao_pady", 6))
-        self.mk_btn(l, "Copy").pack(side=tk.LEFT, padx=D.get("botao_padx", 2))
-        r = tk.Frame(sb, bg=C["header"])
-        r.pack(side=tk.RIGHT, fill="y", padx=D.get("statusbar_padx", 8), pady=D.get("statusbar_pady", 6))
-        self.mk_btn(r, "Mark").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
-        self.mk_btn(r, "Clear").pack(side=tk.LEFT, padx=(0, D.get("botao_padx", 2)))
+        self.ent.pack(side=tk.LEFT, ipady=D.get("button_pady", 6), padx=pd)
+        self.mk_btn(c, "Copy").pack(side=tk.LEFT, padx=pd)
+        self.mk_btn(c, "Mark").pack(side=tk.LEFT, padx=pd)
+        self.mk_btn(c, "Clear").pack(side=tk.LEFT, padx=pd)
 
     def mk_btn(self, p, txt):
         cmd = {"Mark": self.mark, "Clear": self.clr, "Check": self.chk, "Copy": self.cpy}[txt]
         return tk.Button(p, text=txt, command=cmd, font=(F[0], 9, "bold"),
                          bg=C["botao"], fg=C["botao_txt"], activebackground=C["botao_ativo"], activeforeground=C["botao_ativo_txt"],
-                         relief="flat", bd=0, width=D.get("botao_largura", 80)//7, pady=D.get("botao_pady", 6), cursor="hand2")
+                         relief="flat", bd=0, width=D.get("button_width", 80)//7, pady=D.get("button_pady", 6), cursor="hand2")
 
     def upd_res(self, tot):
         self.ent.delete(0, tk.END)
